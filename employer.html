@@ -32,69 +32,9 @@
   <div class="lay">
     <div class="card" id="list"></div>
     <div class="card" id="detail"><p class="sub">Select a candidate to see their verified record.</p></div></div>
-  <p class="sub" style="margin-top:14px">Profiles marked “Sample” are demonstration data. Students appear here when they set their achievements to Public in Settings.</p>
+  <p class="sub" style="margin-top:14px">Students appear here when they set their profile to Public and share verified achievements.</p>
 </main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 <script src="app.js"></script>
-<script>
-if(typeof shell!=='function'){document.body.innerHTML='<div style="padding:40px;font-family:sans-serif"><h1>app.js did not load</h1><p>Put the latest app.js in the same folder as employer.html, then refresh with Ctrl+Shift+R.</p></div>';throw new Error('app.js missing')}
-shell('employer.html');
-const $=i=>document.getElementById(i);
-const V=(t,c,by)=>({t,c,s:'verified',by,d:'2026-03-01',n:''});
-const samples=[
- {id:'s1',name:'Rudo Chikwanha',program:'BSc Computer Science',inst:'University of Zimbabwe',year:'Year 4',about:'Software student with a focus on web and data projects.',interests:'Web development, Data analysis, Python',ach:[V('Dean’s List, 2025','Award','University of Zimbabwe'),V('Campus Hackathon, 2nd place','Competition','University of Zimbabwe')]},
- {id:'s2',name:'Tendai Ncube',program:'BEng Electrical Engineering',inst:'NUST',year:'Year 3',about:'Interested in renewable energy and power systems.',interests:'Solar, Power systems, Embedded',ach:[V('Solar Microgrid Project','Project','NUST'),V('Peer Mentor, 2025','Leadership','NUST')]},
- {id:'s3',name:'Farai Dube',program:'BCom Accounting',inst:'Midlands State University',year:'Year 3',about:'Accounting student who tutors first-years.',interests:'Audit, Tax, Excel',ach:[V('ACCA Foundation Certificate','Certificate','Midlands State University'),{t:'Finance Club Treasurer',c:'Leadership',s:'pending',d:'2026-05-01',n:''}]}];
-// Shortlist and private notes are saved per employer in this browser.
-const EK='vy_emp';
-function E(){try{return Object.assign({short:[],notes:{}},JSON.parse(localStorage.getItem(EK)))}catch(e){return{short:[],notes:{}}}}
-function saveE(o){try{localStorage.setItem(EK,JSON.stringify(o))}catch(e){}}
-// The signed-up student is listed too, but only if Settings has Achievements set to Public.
-function cands(){const u=user(),c=[];
-  if(u.name)c.push({id:'you',name:u.name,program:u.program,inst:u.inst,year:u.year,about:u.about,interests:u.interests,photo:u.photo,email:u.email,real:true,ach:((u.privacy||{}).Achievements||'Public')==='Public'?all():[]});
-  return c.concat(samples)}
-const vc=c=>c.ach.filter(x=>x.s==='verified').length;
-const vis=c=>c.ach.filter(x=>(!$('vo').checked||x.s==='verified')&&(!$('cat').value||x.c===$('cat').value));
-const av=c=>'<span class="av" style="'+(c.photo?'background-image:url('+c.photo+')':'')+'">'+(c.photo?'':esc(initials(c.name)))+'</span>';
-let tab='all',sel=null;
-function rows(){const t=$('q').value.toLowerCase().trim(),e=E();
-  const r=cands().filter(c=>{
-    if(tab==='short'&&!e.short.includes(c.id))return false;
-    if($('vo').checked&&!vc(c))return false;
-    if($('cat').value&&!vis(c).length)return false;
-    if($('ins').value&&c.inst!==$('ins').value)return false;
-    return !t||[c.name,c.program,c.inst,c.interests,c.ach.map(x=>x.t).join(' ')].join(' ').toLowerCase().includes(t)});
-  return r.sort($('srt').value==='name'?(a,b)=>a.name.localeCompare(b.name):(a,b)=>vc(b)-vc(a))}
-function stats(){const cs=cands(),e=E(),n=e.short.filter(id=>cs.some(c=>c.id===id)).length;
-  $('n1').textContent=cs.filter(vc).length;$('n2').textContent=n;$('sc').textContent=n;
-  $('n3').textContent=new Set(cs.filter(vc).map(c=>c.inst).filter(Boolean)).size}
-function draw(){const r=rows(),e=E();
-  $('list').innerHTML=r.map(c=>{const n=vc(c),on=e.short.includes(c.id),
-    cats=[...new Set(c.ach.filter(x=>x.s==='verified').map(x=>x.c))].slice(0,3);
-    return '<div class="crow'+(c.id===sel?' sel':'')+'" data-id="'+c.id+'" tabindex="0">'+av(c)+
-    '<div class="mid"><b>'+esc(c.name)+(c.real?'':'<span class="tag">Sample</span>')+'</b><small>'+esc([c.program,c.inst].filter(Boolean).join(' · '))+'</small>'+
-    '<div class="chips" style="margin-top:6px">'+cats.map(x=>'<span class="chip">'+esc(x)+'</span>').join('')+'</div></div>'+
-    '<span class="b '+(n?'ok':'wait')+'">'+n+' verified</span>'+
-    '<button class="star'+(on?' on':'')+'" data-s="'+c.id+'" aria-pressed="'+on+'" aria-label="Shortlist '+esc(c.name)+'">'+(on?'★':'☆')+'</button></div>'}).join('')||
-    '<p class="sub">'+(tab==='short'?'No one shortlisted yet. Select the star on a candidate to save them here.':'No candidates match your filters.')+'</p>'}
-function show(id){sel=id;draw();
-  const c=cands().find(x=>x.id===id),e=E();if(!c)return;const on=e.short.includes(id);
-  $('detail').innerHTML='<div class="head">'+av(c)+'<div><h2>'+esc(c.name)+'</h2><p class="sub">'+esc([c.program,c.inst,c.year].filter(Boolean).join(' · '))+'</p></div></div>'+
-   '<h2 style="margin-top:16px">About</h2><p style="font-size:.88rem">'+esc(c.about||'No summary provided.')+'</p>'+
-   '<h2 style="margin:16px 0 8px">'+($('vo').checked?'Verified achievements':'Achievements')+'</h2>'+
-   (vis(c).map(x=>'<div class="item">'+badge(x)+'<h3>'+esc(x.t)+'</h3><p>'+meta(x)+'</p></div>').join('')||'<p class="sub">None to show with the current filters.</p>')+
-   '<div class="f no-print" style="margin-top:12px"><label for="nt">Your private note</label><textarea id="nt" placeholder="Only you can see this">'+esc(e.notes[id]||'')+'</textarea></div>'+
-   '<div class="acts no-print"><button class="btn'+(on?' o':'')+'" id="sl">'+(on?'★ Shortlisted':'☆ Shortlist')+'</button>'+
-   (c.email?'<a class="btn o" href="mailto:'+esc(c.email)+'">Contact</a>':'')+'<button class="btn o" onclick="window.print()">Print / save PDF</button></div>';
-  $('nt').oninput=function(){const s=E();s.notes[id]=this.value;saveE(s)};
-  $('sl').onclick=()=>toggle(id)}
-function toggle(id){const e=E(),i=e.short.indexOf(id);i<0?e.short.push(id):e.short.splice(i,1);saveE(e);stats();sel===id?show(id):draw()}
-function setTab(t){tab=t;shell(t==='short'?'employer.html#shortlist':'employer.html');document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));draw()}
-$('list').onclick=e=>{const s=e.target.closest('button[data-s]');if(s){toggle(s.dataset.s);return}const r=e.target.closest('.crow');if(r)show(r.dataset.id)};
-$('list').onkeydown=e=>{if(e.key==='Enter'&&e.target.classList.contains('crow'))show(e.target.dataset.id)};
-$('tabs').onclick=e=>{const b=e.target.closest('button');if(b)location.hash=b.dataset.t==='short'?'#shortlist':'#all'};
-window.onhashchange=()=>setTab(location.hash==='#shortlist'?'short':'all');
-$('ins').innerHTML='<option value="">All institutions</option>'+[...new Set(cands().map(c=>c.inst).filter(Boolean))].sort().map(x=>'<option>'+esc(x)+'</option>').join('');
-['q','cat','ins','srt','vo'].forEach(i=>{$(i).addEventListener('input',draw);$(i).addEventListener('change',draw)});
-[['i1','check'],['i2','award'],['i3','shield']].forEach(p=>$(p[0]).innerHTML=ico(p[1]));
-stats();setTab(location.hash==='#shortlist'?'short':'all');
-</script></body></html>
+<script src="employer.js"></script></body></html>

@@ -13,14 +13,35 @@
     <button class="btn" type="submit">Save details</button> <span id="ok" class="sub"></span></form>
   <div class="card"><h2>Your shortlist</h2><p class="sub" style="margin-bottom:12px">This removes your saved candidates and private notes from this browser.</p><button class="btn d" id="clr">Clear shortlist and notes</button></div>
 </main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 <script src="app.js"></script>
 <script>
-shell('employer-settings.html');
-const $=i=>document.getElementById(i),s=staff();
-$('nm').value=s.name||'';$('co').value=s.inst||'';$('em').value=s.email||'';
-$('sf').onsubmit=e=>{e.preventDefault();
-  try{localStorage.setItem('vy_staff',JSON.stringify(Object.assign(staff(),{name:$('nm').value.trim(),inst:$('co').value.trim(),email:$('em').value.trim()})));$('ok').textContent='Saved.'}
-  catch(err){$('ok').textContent='Could not save. Your browser storage may be full or blocked.'}
-  shell('employer-settings.html')};
-$('clr').onclick=()=>{if(confirm('Clear your shortlist and private notes from this browser?')){try{localStorage.removeItem('vy_emp')}catch(e){}location.href='employer.html'}};
+(async function(){
+  const $=id=>document.getElementById(id);
+  try{
+    const {profile,authUser}=await VY.requireUser(['employer']);
+    $('nm').value=profile.full_name||'';$('co').value=profile.institution||'';
+    $('em').value=authUser.email||'';$('em').readOnly=true;
+    $('sf').onsubmit=async e=>{
+      e.preventDefault();const button=e.target.querySelector('button[type=submit]');VY.setBusy(button,true,'Saving…');
+      try{
+        await VY.saveProfile({full_name:$('nm').value.trim(),institution:$('co').value.trim()});
+        $('ok').textContent='Saved.';VY.showMessage('Your employer details were saved.','success');
+      }catch(error){VY.reportError(error)}finally{VY.setBusy(button,false)}
+    };
+    $('clr').onclick=async()=>{
+      if(!confirm('Clear your shortlist and private notes from this account?'))return;
+      try{
+        const client=VY.getClient();
+        const [shortlists,notes]=await Promise.all([
+          client.from('employer_shortlists').delete().eq('employer_id',authUser.id),
+          client.from('employer_notes').delete().eq('employer_id',authUser.id)
+        ]);
+        if(shortlists.error)throw shortlists.error;if(notes.error)throw notes.error;
+        VY.showMessage('Your shortlist and private notes were cleared.','success');
+      }catch(error){VY.reportError(error)}
+    };
+  }catch(error){VY.reportError(error)}
+})();
 </script></body></html>

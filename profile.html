@@ -17,6 +17,7 @@
       <div class="f"><label for="fy">Year of study</label><input id="fy" placeholder="e.g. Year 3"></div>
       <div class="f"><label for="fa">About you</label><textarea id="fa" placeholder="A short summary of who you are and what you do."></textarea></div>
       <div class="f"><label for="fc">Career interests (separate with commas)</label><input id="fc" placeholder="e.g. Machine learning, Cloud, Embedded systems"></div>
+      <div class="f"><label for="visibility">Profile visibility</label><select id="visibility"><option value="private">Private</option><option value="public">Public</option></select></div>
       <button class="btn" type="submit">Save profile</button></form></div>
 
   <div class="card"><div class="head"><div class="av js-av"></div>
@@ -27,34 +28,79 @@
     <div class="tabs no-print" id="tabs"><button class="on" data-f="all">All</button><button data-f="verified">Verified only</button><button data-f="pending">Pending</button></div>
     <div id="list"></div></div>
 </main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 <script src="app.js"></script>
 <script>
-const a=all();let f='all';
-function render(){
-  shell('profile.html');
-  const u=user();
-  document.getElementById('line').textContent=[u.program,u.inst,u.year].filter(Boolean).join(' · ')||'Add your programme and institution';
-  document.getElementById('vb').innerHTML=a.some(x=>x.s==='verified')?'<span class="b ok">✔ Has verified records</span>':'<span class="b wait">Not yet verified</span>';
-  document.getElementById('about').textContent=u.about||'Add a short summary about yourself.';
-  const ch=(u.interests||'').split(',').map(x=>x.trim()).filter(Boolean);
-  document.getElementById('chips').innerHTML=ch.map(x=>'<span class="chip">'+esc(x)+'</span>').join('')||'<p class="sub">Add your career interests.</p>';
-}
-function draw(){
-  const r=a.filter(x=>f==='all'||x.s===f);
-  document.getElementById('list').innerHTML=r.map(x=>'<div class="item">'+badge(x)+'<h3>'+esc(x.t)+'</h3><p>'+esc(x.n||'')+'</p><p style="margin-top:6px"><small>'+meta(x)+'</small></p></div>').join('')||'<p class="sub">Nothing here yet. <a href="add-achievement.html" style="color:var(--blue)">Add your first achievement</a>.</p>';
-}
-function fill(){const u=user();fn.value=u.name||'';fp.value=u.program||'';fi.value=u.inst||'';fy.value=u.year||'';fa.value=u.about||'';fc.value=u.interests||''}
-const card=document.getElementById('editCard');
-document.getElementById('edit').onclick=()=>{fill();card.style.display=card.style.display==='none'?'block':'none'};
-document.getElementById('pf').onsubmit=e=>{e.preventDefault();
-  setUser({name:fn.value.trim(),program:fp.value.trim(),inst:fi.value.trim(),year:fy.value.trim(),about:fa.value.trim(),interests:fc.value.trim()});
-  card.style.display='none';render()};
-document.getElementById('tabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;f=b.dataset.f;
-  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));draw()};
-document.getElementById('copy').onclick=function(){
-  try{navigator.clipboard.writeText(location.href);this.textContent='Link copied'}catch(e){this.textContent='Copy from address bar'}};
-document.getElementById('ph').onchange=function(){const f=this.files[0];if(f)readPhoto(f,d=>{setUser({photo:d});render()})};
-document.getElementById('rm').onclick=()=>{setUser({photo:''});render()};
-render();draw();
-if(!user().name){fill();card.style.display='block'}
+(async function(){
+  const $=id=>document.getElementById(id),token=new URLSearchParams(location.search).get('share');
+  let profile,achievements=[],filter='all',avatarUrl='',shared=false;
+  const card=$('editCard');
+  function fill(){
+    $('fn').value=profile.full_name||'';$('fp').value=profile.program||'';$('fi').value=profile.institution||'';
+    $('fy').value=profile.study_year||'';$('fa').value=profile.about||'';
+    $('fc').value=(profile.career_interests||[]).join(', ');$('visibility').value=profile.profile_visibility||'private';
+  }
+  function render(){
+    document.querySelectorAll('.js-name').forEach(el=>el.textContent=profile.full_name||'Student');
+    $('line').textContent=[profile.program,profile.institution,profile.study_year].filter(Boolean).join(' · ')||'Add your programme and institution';
+    $('vb').innerHTML=achievements.some(x=>x.status==='verified')?'<span class="b ok">✔ Has verified records</span>':'<span class="b wait">Not yet verified</span>';
+    $('about').textContent=profile.about||'Add a short summary about yourself.';
+    $('chips').innerHTML=(profile.career_interests||[]).map(x=>'<span class="chip">'+esc(x)+'</span>').join('')||'<p class="sub">Add your career interests.</p>';
+    document.querySelectorAll('.js-av').forEach(el=>VY.setAvatar(el,avatarUrl,profile.full_name));
+    $('list').innerHTML=achievements.filter(x=>filter==='all'||x.s===filter).map(x=>'<div class="item">'+badge(x)+'<h3>'+esc(x.t)+'</h3><p>'+esc(x.n||'')+'</p><p style="margin-top:6px"><small>'+meta(x)+'</small></p>'+(x.proofUrl?'<p><a target="_blank" rel="noopener" href="'+esc(x.proofUrl)+'">View proof document</a></p>':'')+'</div>').join('')||'<p class="sub">Nothing here yet. <a href="add-achievement.html" style="color:var(--blue)">Add your first achievement</a>.</p>';
+  }
+  try{
+    const client=VY.getClient();
+    if(token){
+      shared=true;
+      const {data,error}=await client.rpc('get_shared_profile',{share_token:token});
+      if(error)throw error;
+      if(!data)throw new Error('This shared profile is unavailable.');
+      profile={...data,profile_visibility:'public'};
+      achievements=(data.achievements||[]).map(VY.mapAchievement);
+      $('editCard').remove();$('edit').remove();$('vb').parentElement.parentElement.parentElement.querySelector('.no-print')?.remove();
+      $('copy').onclick=async()=>{try{await navigator.clipboard.writeText(location.href);$('copy').textContent='Link copied'}catch(error){VY.reportError(error)}};
+      document.querySelectorAll('.no-print').forEach(el=>el.remove());
+      if(data.avatar_path)avatarUrl=await VY.getSignedFile('profile-avatars',data.avatar_path);
+    }else{
+      const auth=await VY.requireUser(['student']);
+      profile=auth.profile;achievements=await VY.getAchievements();
+      const {data:share,error:shareError}=await auth.db.from('profile_share_tokens').select('token').eq('user_id',auth.authUser.id).single();
+      if(shareError)throw shareError;
+      profile.share_token=share.token;
+      if(profile.avatar_path)avatarUrl=await VY.getSignedFile('profile-avatars',profile.avatar_path);
+      fill();
+      $('edit').onclick=()=>{fill();card.style.display=card.style.display==='none'?'block':'none'};
+      $('pf').onsubmit=async e=>{
+        e.preventDefault();const button=e.target.querySelector('button[type=submit]');VY.setBusy(button,true,'Saving…');
+        try{
+          profile=await VY.saveProfile({
+            full_name:$('fn').value.trim(),program:$('fp').value.trim(),institution:$('fi').value.trim(),
+            study_year:$('fy').value.trim(),about:$('fa').value.trim(),
+            career_interests:$('fc').value,profile_visibility:$('visibility').value
+          });
+          card.style.display='none';render();VY.showMessage('Profile saved.','success');
+        }catch(error){VY.reportError(error)}finally{VY.setBusy(button,false)}
+      };
+      $('ph').onchange=async function(){
+        const file=this.files[0];if(!file)return;
+        try{avatarUrl=await VY.uploadAvatar(file);render();VY.showMessage('Profile photo updated.','success')}
+        catch(error){VY.reportError(error)}finally{this.value=''}
+      };
+      $('rm').onclick=async()=>{try{await VY.removeAvatar();avatarUrl='';render();VY.showMessage('Profile photo removed.','success')}catch(error){VY.reportError(error)}};
+      const {data:sessionResult}=await client.auth.getSession();
+      const shareUrl=new URL('profile.html?share='+encodeURIComponent(profile.share_token),location.href).href;
+      $('copy').onclick=async function(){
+        try{await navigator.clipboard.writeText(shareUrl);this.textContent='Link copied'}
+        catch(error){VY.showMessage('Copy the profile link from the address bar: '+shareUrl,'error')}
+      };
+      $('edit').hidden=!sessionResult.session;
+      if(profile.profile_visibility==='private')VY.showMessage('Your profile is private. Change visibility to Public and set achievements to Public or Link to share records with this link.','error');
+    }
+    $('tabs').onclick=e=>{const button=e.target.closest('button');if(!button)return;filter=button.dataset.f;document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===button));render()};
+    render();
+    if(!shared&&!profile.full_name){fill();card.style.display='block'}
+  }catch(error){VY.reportError(error)}
+})();
 </script></body></html>

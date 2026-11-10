@@ -22,16 +22,54 @@
   <div class="card dark"><h2>What happens next</h2><ul><li>1. Your request is sent to the verifier.</li><li>2. They review your proof and approve or reject it.</li><li>3. Approved items show a Verified badge on your profile.</li></ul></div>
   </div>
 </main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 <script src="app.js"></script>
 <script>
-shell('achievements.html');
-document.getElementById('date').valueAsDate=new Date();
-document.getElementById('form').onsubmit=function(e){
-  e.preventDefault();
-  const t=document.getElementById('title').value.trim(),err=document.getElementById('err');
-  if(!t){err.textContent='Enter a title for your achievement.';err.style.display='block';return}
-  const a=all();
-  a.unshift({t:t,c:document.getElementById('cat').value,d:document.getElementById('date').value,s:'pending',by:'',n:document.getElementById('desc').value.trim(),at:Date.now(),f:(document.getElementById('file').files[0]||{}).name||''});
-  save(a);location.href='dashboard.html?added=1';
-};
+(async function(){
+  try{
+    const {profile,db,authUser}=await VY.requireUser(['student']);
+    const achievementId=new URLSearchParams(location.search).get('id');
+    let existing=null;
+    if(achievementId){
+      const {data,error}=await db.from('achievements').select('*').eq('id',achievementId).eq('user_id',authUser.id).single();
+      if(error)throw error;
+      if(data.status==='verified')throw new Error('Verified achievements cannot be edited.');
+      existing=data;
+      document.querySelector('h1').textContent='Edit an achievement';
+      document.querySelector('.top .sub').textContent='Update the details or proof, then resubmit it for verification.';
+      document.querySelector('#form button[type=submit]').textContent='Save and resubmit';
+      document.getElementById('cat').value=data.category;
+      document.getElementById('title').value=data.title;
+      document.getElementById('desc').value=data.description||'';
+      document.getElementById('date').value=data.achievement_date||'';
+      document.getElementById('ver').value=data.verifier_name||'Course lecturer';
+      document.getElementById('vis').value=data.visibility==='public'?'Public':data.visibility==='link'?'Shared by link only':'Private';
+      if(data.proof_path)document.getElementById('file').insertAdjacentHTML('afterend','<small>Existing proof is retained unless you choose a replacement file.</small>');
+    }
+    if(!existing)document.getElementById('date').valueAsDate=new Date();
+    document.getElementById('form').onsubmit=async function(e){
+      e.preventDefault();
+      const title=document.getElementById('title').value.trim(),err=document.getElementById('err');
+      if(!title){err.textContent='Enter a title for your achievement.';err.style.display='block';return}
+      err.style.display='none';
+      const button=this.querySelector('button[type=submit]');
+      VY.setBusy(button,true,'Submitting…');
+      try{
+        const values={
+          title:title,category:document.getElementById('cat').value,
+          description:document.getElementById('desc').value.trim(),
+          achievement_date:document.getElementById('date').value,
+          verifier_name:document.getElementById('ver').value,
+          visibility:document.getElementById('vis').value.toLowerCase().startsWith('public')?'public':
+            document.getElementById('vis').value.toLowerCase().startsWith('shared')?'link':'private',
+          institution:profile.institution
+        };
+        if(existing)await VY.updateAchievement(existing.id,values,document.getElementById('file').files[0]||null);
+        else await VY.saveAchievement(values,document.getElementById('file').files[0]||null);
+        location.href='dashboard.html?added=1';
+      }catch(error){err.textContent=error.message;err.style.display='block';VY.setBusy(button,false)}
+    };
+  }catch(error){VY.reportError(error)}
+})();
 </script></body></html>

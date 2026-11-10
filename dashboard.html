@@ -23,21 +23,27 @@
       <a href="profile.html"><span class="ic" id="a3"></span><span><b>Share your profile</b><small>Copy your public link or QR code</small></span><span class="go" id="g3"></span></a></div>
   </div>
 </main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 <script src="app.js"></script>
 <script>
-shell('dashboard.html');
-const a=all(),c=s=>a.filter(x=>x.s===s).length,h=new Date().getHours(),u=user();
-document.getElementById('hello').textContent=(h<12?'Good morning':h<18?'Good afternoon':'Good evening')+(u.name?', '+u.name.split(' ')[0]:'');
-['nv','np','nr'].forEach((id,i)=>document.getElementById(id).textContent=c(['verified','pending','rejected'][i]));
-[['i1','check'],['i2','clock'],['i3','x'],['a1','award'],['a2','send'],['a3','share'],['g1','chev'],['g2','chev'],['g3','chev']].forEach(p=>document.getElementById(p[0]).innerHTML=ico(p[1]));
-const s=strength();
-document.getElementById('pct').textContent=s.pct+'%';
-document.getElementById('ring').style.setProperty('--p',s.pct);
-document.getElementById('fill').style.width=s.pct+'%';
-document.getElementById('bt').textContent=s.pct>=70?'Your profile is looking strong':'Let’s build your profile';
-document.getElementById('tip').textContent=s.tip;
-document.getElementById('fu').textContent=c('pending')+' verification'+(c('pending')===1?' is':'s are')+' pending';
-const icon={verified:['check','Verified'],pending:['send','Verification request sent'],rejected:['x','Verification rejected']};
-document.getElementById('list').innerHTML=a.slice(0,5).map(x=>'<div class="ev"><span class="ic">'+ico(icon[x.s][0])+'</span><div><b>'+esc(x.t)+'</b><small>'+icon[x.s][1]+' · '+(x.at?ago(x.at):fmt(x.d))+'</small></div></div>').join('')||'<p class="sub" style="margin-bottom:10px">No activity yet. Add your first achievement to get started.</p>';
-if(location.search.includes('added=1'))document.getElementById('added').style.display='block';
+(async function(){
+  try{
+    const {profile}=await VY.requireUser(['student']),a=await VY.getAchievements();
+    const count=status=>a.filter(x=>x.s===status).length,h=new Date().getHours();
+    document.getElementById('hello').textContent=(h<12?'Good morning':h<18?'Good afternoon':'Good evening')+(profile.full_name?', '+profile.full_name.split(' ')[0]:'');
+    ['nv','np','nr'].forEach((id,i)=>document.getElementById(id).textContent=count(['verified','pending','rejected'][i]));
+    [['i1','check'],['i2','clock'],['i3','x'],['a1','award'],['a2','send'],['a3','share'],['g1','chev'],['g2','chev'],['g3','chev']].forEach(p=>document.getElementById(p[0]).innerHTML=ico(p[1]));
+    const s=VY.strength(profile);
+    document.getElementById('pct').textContent=s.pct+'%';
+    document.getElementById('ring').style.setProperty('--p',s.pct);
+    document.getElementById('fill').style.width=s.pct+'%';
+    document.getElementById('bt').textContent=s.pct>=70?'Your profile is looking strong':'Let’s build your profile';
+    document.getElementById('tip').textContent=s.tip;
+    document.getElementById('fu').textContent=count('pending')+' verification'+(count('pending')===1?' is':'s are')+' pending';
+    const icon={verified:['check','Verified'],pending:['send','Verification request sent'],rejected:['x','Verification rejected']};
+    document.getElementById('list').innerHTML=a.slice(0,5).map(x=>'<div class="ev"><span class="ic">'+ico(icon[x.s][0])+'</span><div><b>'+esc(x.t)+'</b><small>'+icon[x.s][1]+' · '+(x.at?ago(x.at):fmt(x.d))+'</small></div></div>').join('')||'<p class="sub" style="margin-bottom:10px">No activity yet. Add your first achievement to get started.</p>';
+    if(location.search.includes('added=1'))document.getElementById('added').style.display='block';
+  }catch(error){VY.reportError(error)}
+})();
 </script></body></html>

@@ -55,7 +55,7 @@ input:focus,select:focus{border-color:var(--blue)}
 .msg{display:none;margin-top:14px;padding:10px 12px;border-radius:8px;font-size:.82rem;background:var(--mint);color:var(--green)}
 .msg.err{background:#fdecec;color:#b3261e}
 .back{display:block;text-align:center;margin-top:18px;font-size:.8rem}
-.signup-only{display:block}.login .signup-only{display:none}
+.signup-only{display:block}.login .signup-only{display:none}.login-only{display:none}.login .login-only{display:block}
 
 @media(max-width:860px){
   .page{grid-template-columns:1fr}
@@ -110,6 +110,7 @@ input:focus,select:focus{border-color:var(--blue)}
         </div>
 
         <div class="field"><label for="pw">Password</label><input type="password" id="pw" placeholder="At least 8 characters" required></div>
+        <a href="#" class="login-only" id="forgot">Forgot your password?</a>
 
         <label class="check signup-only"><input type="checkbox" id="terms"> I agree to the Terms and Privacy Policy.</label>
 
@@ -124,12 +125,15 @@ input:focus,select:focus{border-color:var(--blue)}
   </main>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="app.js"></script>
 <script>
   const box = document.getElementById('box');
   const tabUp = document.getElementById('tabUp'), tabIn = document.getElementById('tabIn');
   const title = document.getElementById('title'), hint = document.getElementById('hint');
   const submit = document.getElementById('submit'), msg = document.getElementById('msg');
-  let mode = 'signup';
+  let mode = 'signup', recoveryMode = location.hash.includes('type=recovery');
 
   function setMode(m){
     mode = m;
@@ -152,31 +156,101 @@ input:focus,select:focus{border-color:var(--blue)}
     msg.style.display = 'block';
   }
 
-  document.getElementById('form').addEventListener('submit', function(e){
+  function authErrorMessage(error){
+    const message = error && error.message ? error.message : 'Authentication failed. Please try again.';
+    if (/email.*rate limit|rate limit.*email/i.test(message)) {
+      return 'Supabase has temporarily limited email delivery for this project. Wait before requesting another email, or ask the project administrator to configure custom SMTP and set an appropriate email limit in Supabase.';
+    }
+    return message;
+  }
+
+  if (recoveryMode) {
+    setMode('login');
+    title.textContent = 'Choose a new password';
+    hint.textContent = 'Enter a new password for your account.';
+    submit.textContent = 'Update password';
+  } else {
+    VY.routeForRole().then(function (route) { if (route) location.replace(route); }).catch(VY.reportError);
+  }
+  document.getElementById('form').addEventListener('submit', async function(e){
     e.preventDefault();
     const email = document.getElementById('email').value.trim();
     const pw = document.getElementById('pw').value;
     if (!email.includes('@')) return show('Enter a valid email address.', true);
     if (pw.length < 8) return show('Password must be at least 8 characters.', true);
+    const button = document.getElementById('submit');
+    VY.setBusy(button, true, 'Please wait…');
+    try {
+      const client = VY.getClient();
+      if (recoveryMode) {
+        const {error} = await client.auth.updateUser({password:pw});
+        if (error) throw error;
+        recoveryMode = false;
+        show('Your password has been updated. You can now log in.', false);
+        setMode('login');
+        return;
+      }
     if (mode === 'signup') {
       if (!document.getElementById('name').value.trim()) return show('Enter your full name.', true);
       if (!document.getElementById('terms').checked) return show('Please accept the Terms to continue.', true);
     }
-    // TODO: connect to Supabase here (signUp / signInWithPassword)
-    const role = document.querySelector('input[name=role]:checked').value;
-    const key = role === 'student' ? 'vy_user' : 'vy_staff';
-    try {
-      const u = JSON.parse(localStorage.getItem(key)) || {};
-      if (mode === 'signup') { u.name = document.getElementById('name').value.trim(); u.inst = document.getElementById('inst').value.trim(); }
-      else if (!u.name) { u.name = email.split('@')[0]; }
-      u.email = email;
-      localStorage.setItem(key, JSON.stringify(u));
-      localStorage.setItem('vy_role', role);
-    } catch (err) {}
-    location.href = role === 'lecturer' ? 'institution.html' : role === 'employer' ? 'employer.html' : 'dashboard.html';
+      if (mode === 'signup') {
+        const role = document.querySelector('input[name=role]:checked').value;
+        const {data, error} = await client.auth.signUp({
+          email:email,
+          password:pw,
+          options:{
+            emailRedirectTo:new URL('login.html#login',location.href).href,
+            data:{
+              role:role,
+              full_name:document.getElementById('name').value.trim(),
+              institution:document.getElementById('inst').value.trim()
+            }
+          }
+        });
+        if (error) throw error;
+        if (!data.session) {
+          show('Account created. Check your email to confirm your address, then log in.', false);
+          return;
+        }
+      } else {
+        const {error} = await client.auth.signInWithPassword({email:email,password:pw});
+        if (error) throw error;
+      }
+      const route = await VY.routeForRole();
+      if (!route) throw new Error('Authentication succeeded, but no session was created. Check your email confirmation settings.');
+      location.replace(route);
+    } catch (error) {
+      show(authErrorMessage(error), true);
+    } finally {
+      VY.setBusy(button, false);
+    }
   });
 
-  document.getElementById('uni').onclick = () => show('University email sign-in will be connected with Supabase.');
+  document.getElementById('forgot').onclick = async function(e) {
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    if (!email.includes('@')) return show('Enter your email address first.', true);
+    try {
+      const {error} = await VY.getClient().auth.resetPasswordForEmail(email, {
+        redirectTo:new URL('login.html', location.href).href
+      });
+      if (error) throw error;
+      show('Password reset instructions have been sent to your email.', false);
+    } catch (error) { show(authErrorMessage(error), true); }
+  };
+  document.getElementById('uni').onclick = async function() {
+    const email = document.getElementById('email').value.trim();
+    if (!email.includes('@')) return show('Enter your university email address first.', true);
+    try {
+      const {error} = await VY.getClient().auth.signInWithOtp({
+        email:email,
+        options:{emailRedirectTo:new URL('login.html#login',location.href).href}
+      });
+      if (error) throw error;
+      show('A sign-in link has been sent to your email.', false);
+    } catch (error) { show(authErrorMessage(error), true); }
+  };
 </script>
 </body>
 </html>

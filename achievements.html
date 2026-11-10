@@ -7,11 +7,28 @@
   <div class="top"><div><h1>Achievements</h1><p class="sub">Everything you have added, with its verification status.</p></div><a class="btn" href="add-achievement.html">+ Add achievement</a></div>
   <div class="card"><div class="tabs" id="tabs"><button class="on" data-f="all">All</button><button data-f="verified">Verified</button><button data-f="pending">Pending</button><button data-f="rejected">Rejected</button></div><div id="list"></div></div>
 </main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 <script src="app.js"></script>
 <script>
-shell('achievements.html');
-const a=all();let f='all';
-function draw(){document.getElementById('list').innerHTML=listHTML(a.filter(x=>f==='all'||x.s===f),'Nothing here yet. Add your first achievement.')}
-document.getElementById('tabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;f=b.dataset.f;document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));draw()};
-draw();
+(async function(){
+  try{
+    await VY.requireUser(['student']);
+    const a=await VY.getAchievements();let f='all';
+    function draw(){document.getElementById('list').innerHTML=a.filter(x=>f==='all'||x.s===f).map(x=>
+      '<div class="item">'+badge(x)+'<h3>'+esc(x.t)+'</h3><p>'+esc(x.n||'')+'</p><p style="margin-top:6px"><small>'+meta(x)+'</small></p>'+
+      (x.rc?'<p class="sub">Reviewer comment: '+esc(x.rc)+'</p>':'')+
+      (x.s!=='verified'?'<div class="acts no-print"><a class="btn o" href="add-achievement.html?id='+encodeURIComponent(x.id)+'">Edit / resubmit</a><button class="btn d" data-delete="'+esc(x.id)+'">Delete</button></div>':'')+
+      '</div>').join('')||'<p class="sub">Nothing here yet. Add your first achievement.</p>'}
+    document.getElementById('tabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;f=b.dataset.f;document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));draw()};
+    document.getElementById('list').onclick=async e=>{
+      const button=e.target.closest('button[data-delete]');if(!button)return;
+      if(!confirm('Delete this unverified achievement? This cannot be undone.'))return;
+      button.disabled=true;
+      try{await VY.deleteAchievement(button.dataset.delete);const index=a.findIndex(x=>x.id===button.dataset.delete);if(index>=0)a.splice(index,1);draw();VY.showMessage('Achievement deleted.','success')}
+      catch(error){VY.reportError(error);button.disabled=false}
+    };
+    draw();
+  }catch(error){VY.reportError(error)}
+})();
 </script></body></html>

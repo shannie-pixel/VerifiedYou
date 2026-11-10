@@ -8,11 +8,19 @@
   <div class="card"><h2>Pending</h2><div id="p"></div></div>
   <div class="card"><h2>Needs action</h2><div id="r"></div></div>
 </main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 <script src="app.js"></script>
 <script>
-shell('requests.html');
-const a=all();
-const row=x=>'<div class="row"><div><b>'+esc(x.t)+'</b><small>'+meta(x)+'</small>'+(x.rc?'<small style=\"display:block;color:var(--red)\">Reviewer comment: '+esc(x.rc)+'</small>':'')+'</div>'+(x.s==='rejected'?'<a class="btn o" href="add-achievement.html">Resubmit</a>':badge(x))+'</div>';
-document.getElementById('p').innerHTML=a.filter(x=>x.s==='pending').map(row).join('')||'<p class="sub">No pending requests.</p>';
-document.getElementById('r').innerHTML=a.filter(x=>x.s==='rejected').map(row).join('')||'<p class="sub">Nothing needs your attention.</p>';
+(async function(){
+  try{
+    await VY.requireUser(['student']);
+    const achievements=await VY.getAchievements();
+    const row=x=>'<div class="row"><div><b>'+esc(x.t)+'</b><small>'+meta(x)+'</small>'+
+      (x.rc?'<small style="display:block;color:var(--red)">Reviewer comment: '+esc(x.rc)+'</small>':'')+
+      '</div>'+(x.s==='rejected'?'<a class="btn o" href="add-achievement.html">Resubmit</a>':badge(x))+'</div>';
+    document.getElementById('p').innerHTML=achievements.filter(x=>x.s==='pending').map(row).join('')||'<p class="sub">No pending requests.</p>';
+    document.getElementById('r').innerHTML=achievements.filter(x=>x.s==='rejected').map(row).join('')||'<p class="sub">Nothing needs your attention.</p>';
+  }catch(error){VY.reportError(error)}
+})();
 </script></body></html>
