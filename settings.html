@@ -1,0 +1,18 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings | VerifiedYou</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="app.css"></head><body>
+<div class="app"><nav id="side" aria-label="Main"></nav>
+<main class="main">
+  <div class="top"><div><h1>Settings</h1><p class="sub">Choose who can see each part of your profile.</p></div></div>
+  <form class="card" id="sf"><h2>Profile visibility</h2><div id="opts"></div><button class="btn" type="submit">Save settings</button> <span id="ok" class="sub"></span></form>
+  <div class="card"><h2>Your data</h2><p class="sub" style="margin-bottom:12px">This removes your profile details, photo and achievements from this browser.</p><button class="btn d" id="clr">Clear all my data</button></div>
+</main></div>
+<script src="app.js"></script>
+<script>
+shell('settings.html');
+const parts=['Academics','Achievements','Projects','Documents'],pv=user().privacy||{};
+document.getElementById('opts').innerHTML=parts.map(p=>'<div class="f"><label for="v'+p+'">'+p+'</label><select id="v'+p+'">'+['Public','Link only','Private'].map(o=>'<option'+((pv[p]||'Public')===o?' selected':'')+'>'+o+'</option>').join('')+'</select></div>').join('');
+document.getElementById('sf').onsubmit=e=>{e.preventDefault();const o={};parts.forEach(p=>o[p]=document.getElementById('v'+p).value);setUser({privacy:o});document.getElementById('ok').textContent='Saved.'};
+document.getElementById('clr').onclick=()=>{if(confirm('Clear all your saved details and achievements from this browser?')){localStorage.removeItem(K);localStorage.removeItem(U);location.href='index.html'}};
+</script></body></html>
