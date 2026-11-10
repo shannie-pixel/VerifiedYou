@@ -1,22 +1,28 @@
 # VerifiedYou
 
-## Pages and how they link
-- `index.html`: landing page. Links to `login.html`.
-- `login.html`: sign up or log in. Sends each role to its page:
-  - Student: `dashboard.html`
-  - Lecturer / Institution: `institution.html`
-  - Employer: `employer.html`
-- Student pages (shared sidebar from `app.js`): `dashboard.html`, `profile.html`, `achievements.html`, `add-achievement.html`, `documents.html`, `requests.html`, `settings.html`
-- `institution.html` (+ `institution.css`, `institution.js`): institution review page. Shows the achievements students submit. Approve or reject here and the student sees the result.
-- `employer.html`: employers search verified candidates.
-- `verifier.html`: older review page. Nothing links to it any more; you can delete it.
+VerifiedYou is a static HTML, CSS, and JavaScript application backed by Supabase Authentication, PostgreSQL, and Storage.
 
-## Shared files
-- `app.css` and `app.js` style and power every page except the landing and login pages. `institution.html` also loads `app.js` to read and save the same data.
+## Run locally
 
-## Run it in VS Code
-Open the folder, right-click `index.html` and choose **Open with Live Server**. Keep all files in the same folder.
+1. Configure the Supabase project URL and publishable key in `supabase-config.js`.
+2. Apply `supabase/migrations/20261110000000_initial_schema.sql` in the Supabase SQL Editor.
+3. Configure the Supabase Auth Site URL and Redirect URLs for the local address you use.
+4. Serve the project over HTTP, for example:
 
-## Connecting a backend later
-- Data is saved in the browser (localStorage) for now. Replace `all()` / `save()` in `app.js` with calls to your database.
-- Only let institution accounts reach `institution.html`. That check must happen on your backend.
+   ```powershell
+   python -m http.server 5500
+   ```
+
+5. Open `http://localhost:5500`.
+
+For detailed setup, email delivery limits, and authorization notes, see [SUPABASE_SETUP.md](./SUPABASE_SETUP.md).
+
+## Application pages
+
+- `index.html`: landing page
+- `login.html`: registration, sign-in, and password recovery
+- Student: `dashboard.html`, `profile.html`, `achievements.html`, `add-achievement.html`, `requests.html`, and `settings.html`
+- Institution: `institution.html`
+- Employer: `employer.html` and `employer-settings.html`
+
+The shared Supabase client and authenticated data operations are in `app.js`; employer-specific behavior is in `employer.js`. Never put a Supabase service-role key in browser code.

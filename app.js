@@ -165,7 +165,7 @@
     const student = profile.role === 'student';
     const institution = profile.role === 'lecturer';
     const links = student
-      ? [['dashboard.html','Dashboard'],['achievements.html','Achievements'],['add-achievement.html','Add achievement'],['requests.html','Requests'],['profile.html','My profile']]
+      ? [['dashboard.html','Dashboard'],['achievements.html','Achievements'],['add-achievement.html','Add achievement'],['requests.html','Requests'],['profile.html','My profile'],['settings.html','Settings']]
       : institution
         ? [['institution.html','Verification requests']]
         : [['employer.html','Find candidates'],['employer-settings.html','Settings']];
