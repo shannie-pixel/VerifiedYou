@@ -101,11 +101,22 @@
   async function loadRecommendationLecturers(){
     const select=$('recommendationLecturer');
     const {data,error}=await VY.getClient().rpc('get_recommendation_lecturers');
-    if(error)throw error;
+    if(error){
+      if(error.code!=='PGRST202')throw error;
+      lecturers=[];
+      select.innerHTML='<option value="" selected disabled>Lecturer list unavailable</option>';
+      $('recommendationRecipient').value='institution';
+      $('recommendationRecipient').querySelector('option[value="lecturer"]').disabled=true;
+      $('recommendationLecturerField').hidden=true;
+      $('recommendationHelp').textContent='Lecturer requests are temporarily unavailable because the recommendation database migration is missing or its schema cache is stale. Apply supabase/migrations/20261111000000_recommendation_requests.sql in the Supabase SQL Editor, then reload this page.';
+      $('recommendationHelp').className='notice error';
+      return;
+    }
     lecturers=data||[];
     select.innerHTML=lecturers.length
       ?lecturers.map(lecturer=>'<option value="'+esc(lecturer.user_id)+'">'+esc(lecturer.full_name)+'</option>').join('')
       :'<option value="" selected disabled>No lecturers are registered at this institution</option>';
+    $('recommendationRecipient').querySelector('option[value="lecturer"]').disabled=!lecturers.length;
     const unavailable=!profile.institution;
     $('recommendationSubmit').disabled=unavailable;
     $('recommendationHelp').textContent=!profile.institution
@@ -113,6 +124,7 @@
       :lecturers.length===0
         ?'No lecturers have signed up with this institution yet. You can still request from the institution.'
         :'Choose a lecturer signed up with your institution. They will receive an in-app request and an email notification.';
+    $('recommendationHelp').className=unavailable?'notice error':'sub';
   }
   $('recommendationRecipient').onchange=function(){
     $('recommendationLecturerField').hidden=this.value!=='lecturer';

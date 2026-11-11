@@ -8,6 +8,21 @@
   const current = () => requests.find(row => row.id === selectedId);
   const currentLetter = () => letterRequests.find(row => row.id === selectedLetterId);
   const letterLabel = status => ({pending:'Pending',completed:'Completed',rejected:'Declined'})[status] || status;
+  const isMissingRecommendationTable = error => error &&
+    (error.code === 'PGRST205' || error.code === '42P01' ||
+      /could not find the table .*recommendation_requests|relation .*recommendation_requests.* does not exist/i.test(error.message || ''));
+
+  function reportLetterError(error) {
+    if (isMissingRecommendationTable(error)) {
+      $('letterSetupError').textContent =
+        'Recommendation requests are not set up in this Supabase project yet. In Supabase Dashboard → SQL Editor, run supabase/migrations/20261111000000_recommendation_requests.sql, then reload this page. If you already ran it, refresh the PostgREST schema cache and reload.';
+      $('letterSetupError').hidden = false;
+      $('letterSummary').hidden = true;
+      $('letterQueue').hidden = true;
+      return;
+    }
+    VY.reportError(error);
+  }
 
   function render() {
     const query = $('q').value.toLowerCase().trim();
@@ -180,7 +195,7 @@
       ? 'Recommendation letter attached and request completed.'
       : 'Recommendation request declined.','success');
     try { await loadLetters(); }
-    catch (error) { VY.reportError(error); }
+    catch (error) { reportLetterError(error); }
   }
 
   async function loadLetters() {
@@ -306,6 +321,6 @@
       }
       await loadLetters();
       setFilter(location.hash === '#history' ? 'history' : 'all');
-    } catch (error) { VY.reportError(error); }
+    } catch (error) { reportLetterError(error); }
   })();
 })();

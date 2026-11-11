@@ -10,6 +10,8 @@ VerifiedYou is a static HTML, CSS, and JavaScript application. It uses the Supab
 
 The initial migration `supabase/migrations/20261110000000_initial_schema.sql` creates the profile, achievement, institution-verifier, employer shortlist, and private-note tables; Row Level Security policies; private proof and avatar buckets; and the profile-sharing RPC. The recommendation-letter workflow is added by `supabase/migrations/20261111000000_recommendation_requests.sql`. Apply both migrations, in timestamp order, in the Supabase SQL Editor when setting up a project. Local Supabase applies both automatically.
 
+If the profile reports that `get_recommendation_lecturers` is missing from the schema cache, the recommendation migration has not been applied to the configured project (or PostgREST has not refreshed its schema cache). Run the recommendation migration in the Supabase SQL Editor; it requests a schema-cache refresh at the end. Reload the profile after the migration completes.
+
 The application never grants institution review permissions based on the signup role alone. To authorize a lecturer, first have that person register, then add their account from the SQL Editor or another trusted administrator context:
 
 ```sql

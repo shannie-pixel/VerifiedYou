@@ -48,13 +48,14 @@
   <section class="recommendations" id="recommendations" aria-labelledby="recommendationTitle">
     <h2 id="recommendationTitle">Recommendation letter requests</h2>
     <p class="sub">Fulfill a request by attaching the signed PDF letter, or decline it with a note.</p>
-    <div class="stats" aria-label="Recommendation request summary">
+    <div class="notice error" id="letterSetupError" role="alert" hidden></div>
+    <div class="stats" id="letterSummary" aria-label="Recommendation request summary">
       <div class="stat wait"><b id="letterPending">0</b><span>Waiting for review</span></div>
       <div class="stat"><b id="letterCompleted">0</b><span>Completed</span></div>
       <div class="stat"><b id="letterRejected">0</b><span>Declined</span></div>
       <div class="stat"><b id="letterTotal">0</b><span>Total requests</span></div>
     </div>
-    <div class="cols">
+    <div class="cols" id="letterQueue">
       <section class="panel" aria-label="Recommendation letter request list">
         <div class="bar letter-filter">
           <input id="letterQ" type="search" placeholder="Search by student or purpose" aria-label="Search recommendation requests">

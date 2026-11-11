@@ -393,3 +393,5 @@ using (
     )
   )
 );
+
+notify pgrst, 'reload schema';
