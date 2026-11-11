@@ -37,7 +37,7 @@ For detailed setup, email delivery limits, and authorization notes, see [SUPABAS
 
 - `index.html`: landing page
 - `login.html`: registration, sign-in, and password recovery
-- Student: `dashboard.html`, `profile.html`, `achievements.html`, `add-achievement.html`, `requests.html`, and `settings.html`
+- Student: `dashboard.html`, `profile.html` (including recommendation-letter requests), `achievements.html`, `add-achievement.html`, `requests.html`, and `settings.html`
 - Institution: `institution.html`
 - Employer: `employer.html` and `employer-settings.html`
 

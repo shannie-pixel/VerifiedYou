@@ -15,19 +15,20 @@
   <nav aria-label="Institution menu">
     <a href="institution.html" class="on">Requests</a>
     <a href="#history">History</a>
+    <a href="#recommendations">Recommendation letters</a>
   </nav>
-  <div class="who"><strong id="instName">Your institution</strong>Signed in as institution<br><button id="logout">Log out</button></div>
+  <div class="who"><strong id="instName">Your institution</strong>Signed in as lecturer<br><button id="logout">Log out</button></div>
 </aside>
 <main>
-  <h1>Verification requests</h1>
-  <p class="sub">Confirm the achievements and records your students have submitted, or reject them with a note.</p>
-  <section class="stats" aria-label="Summary">
+  <h1 id="pageTitle">Verification requests</h1>
+  <p class="sub" id="pageIntro">Confirm the achievements and records your students have submitted, or reject them with a note.</p>
+  <section class="stats" id="achievementSummary" aria-label="Summary">
     <div class="stat wait"><b id="sPending">0</b><span>Waiting for review</span></div>
     <div class="stat"><b id="sApproved">0</b><span>Approved</span></div>
     <div class="stat"><b id="sRejected">0</b><span>Rejected</span></div>
     <div class="stat"><b id="sTotal">0</b><span>Total requests</span></div>
   </section>
-  <div class="cols">
+  <div class="cols" id="achievementQueue">
     <section class="panel" aria-label="Request list">
       <div class="bar">
         <input id="q" type="search" placeholder="Search by student or achievement" aria-label="Search requests">
@@ -44,6 +45,33 @@
     </section>
     <aside class="panel detail" id="detail" aria-live="polite"></aside>
   </div>
+  <section class="recommendations" id="recommendations" aria-labelledby="recommendationTitle">
+    <h2 id="recommendationTitle">Recommendation letter requests</h2>
+    <p class="sub">Fulfill a request by attaching the signed PDF letter, or decline it with a note.</p>
+    <div class="stats" aria-label="Recommendation request summary">
+      <div class="stat wait"><b id="letterPending">0</b><span>Waiting for review</span></div>
+      <div class="stat"><b id="letterCompleted">0</b><span>Completed</span></div>
+      <div class="stat"><b id="letterRejected">0</b><span>Declined</span></div>
+      <div class="stat"><b id="letterTotal">0</b><span>Total requests</span></div>
+    </div>
+    <div class="cols">
+      <section class="panel" aria-label="Recommendation letter request list">
+        <div class="bar letter-filter">
+          <input id="letterQ" type="search" placeholder="Search by student or purpose" aria-label="Search recommendation requests">
+          <button class="letter-chip" data-letter-filter="all" aria-pressed="true">All</button>
+          <button class="letter-chip" data-letter-filter="pending" aria-pressed="false">Pending</button>
+          <button class="letter-chip" data-letter-filter="completed" aria-pressed="false">Completed</button>
+          <button class="letter-chip" data-letter-filter="rejected" aria-pressed="false">Declined</button>
+        </div>
+        <div class="list"><table>
+          <thead><tr><th>Student / recipient</th><th>Submitted</th><th>Status</th></tr></thead>
+          <tbody id="letterRows"></tbody>
+        </table></div>
+        <div class="empty" id="letterNone" hidden>No recommendation requests match your search or filter.</div>
+      </section>
+      <aside class="panel detail" id="letterDetail" aria-live="polite"></aside>
+    </div>
+  </section>
 </main>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

@@ -4,7 +4,12 @@
 <link rel="stylesheet" href="app.css"></head><body>
 <div class="app"><nav id="side" aria-label="Main"></nav>
 <main class="main">
-  <div class="top"><div><h1>Achievements</h1><p class="sub">Everything you have added, with its verification status.</p></div><a class="btn" href="add-achievement.html">+ Add achievement</a></div>
+  <div class="top"><div><h1>Achievements</h1><p class="sub">Everything you have added, with its verification status.</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn o" href="profile.html#recommendationCard">Request recommendation letter</a>
+      <a class="btn" href="add-achievement.html">+ Add achievement</a>
+    </div>
+  </div>
   <div class="card"><div class="tabs" id="tabs"><button class="on" data-f="all">All</button><button data-f="verified">Verified</button><button data-f="pending">Pending</button><button data-f="rejected">Rejected</button></div><div id="list"></div></div>
 </main></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
