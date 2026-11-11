@@ -169,9 +169,6 @@
       const verifierResult = await db.from('institution_verifiers')
         .select('institution, active').eq('user_id', authUser.id).eq('active', true).maybeSingle();
       if (verifierResult.error) throw verifierResult.error;
-      if (location.pathname.toLowerCase().endsWith('institution.html') && !verifierResult.data) {
-        throw new Error('Institution review access has not been granted to this account. Ask a project administrator to add you as an institution verifier.');
-      }
       currentProfile.verifier = verifierResult.data;
     }
     shell(location.pathname.split(/[\\/]/).pop(), currentProfile);
@@ -186,7 +183,7 @@
       const links = student
         ? [['dashboard.html','Dashboard'],['achievements.html','Achievements'],['add-achievement.html','Add achievement'],['requests.html','Requests'],['profile.html','My profile'],['settings.html','Settings']]
         : institution
-          ? [['institution.html','Verification requests']]
+          ? [['institution.html',profile.verifier ? 'Verification requests' : 'Lecturer requests']]
           : [['employer.html','Find candidates'],['employer-settings.html','Settings']];
       const activePage = (page || '').split('#')[0];
       side.innerHTML = '<a class="brand" href="index.html">' + ico('shield') + 'VerifiedYou</a>' +

@@ -5,7 +5,7 @@
 <div class="app"><nav id="side" aria-label="Main"></nav>
 <main class="main">
   <div class="top"><div><h1>My public profile</h1><p class="sub">This is what employers see when you share your link.</p></div>
-    <div class="no-print"><button class="btn o" id="edit">Edit profile</button> <button class="btn o" id="copy">Copy profile link</button> <button class="btn" onclick="window.print()">Download PDF</button></div></div>
+    <div class="no-print"><a class="btn" href="#recommendationCard">Request recommendation letter</a> <button class="btn o" id="edit">Edit profile</button> <button class="btn o" id="copy">Copy profile link</button> <button class="btn" onclick="window.print()">Download PDF</button></div></div>
 
   <div class="card no-print" id="editCard" style="display:none"><h2>Your details</h2>
     <form id="pf">
@@ -24,6 +24,26 @@
     <div><h2 class="js-name"></h2><p class="sub" id="line"></p><span id="vb" style="margin-top:6px;display:inline-block"></span></div></div></div>
   <div class="card"><h2>About</h2><p id="about"></p>
     <h2 style="margin-top:16px">Career interests</h2><div class="chips" id="chips"></div></div>
+  <section class="card no-print" id="recommendationCard" aria-labelledby="recommendationHeading">
+    <h2 id="recommendationHeading">Recommendation letters</h2>
+    <p class="sub">Request a letter from a lecturer or your institution, then follow its status here.</p>
+    <form id="recommendationForm">
+      <div class="f"><label for="recommendationRecipient">Request from</label>
+        <select id="recommendationRecipient"><option value="institution">My institution</option><option value="lecturer">A lecturer</option></select></div>
+      <div class="f" id="recommendationLecturerField" hidden><label for="recommendationLecturer">Lecturer</label>
+        <select id="recommendationLecturer"></select></div>
+      <div class="f"><label for="recommendationPurpose">What do you need the letter for?</label>
+        <input id="recommendationPurpose" maxlength="160" required placeholder="e.g. Graduate programme application"></div>
+      <div class="f"><label for="recommendationMessage">Message to the reviewer</label>
+        <textarea id="recommendationMessage" maxlength="2000" placeholder="Add context that will help prepare your letter."></textarea></div>
+      <div class="f"><label for="recommendationDeadline">When do you need it? (optional)</label>
+        <input id="recommendationDeadline" type="date"></div>
+      <button class="btn" type="submit" id="recommendationSubmit" disabled>Send request</button>
+      <p class="sub" id="recommendationHelp" role="status" style="margin:10px 0 0"></p>
+    </form>
+    <h3 style="margin-top:22px">Your requests</h3>
+    <div id="recommendationList" aria-live="polite"><p class="sub">Loading requests…</p></div>
+  </section>
   <div class="card"><h2>Achievements and projects</h2>
     <div class="tabs no-print" id="tabs"><button class="on" data-f="all">All</button><button data-f="verified">Verified only</button><button data-f="pending">Pending</button></div>
     <div id="list"></div></div>
@@ -34,8 +54,9 @@
 <script>
 (async function(){
   const $=id=>document.getElementById(id),token=new URLSearchParams(location.search).get('share');
-  let profile,achievements=[],filter='all',avatarUrl='',shared=false;
+  let profile,achievements=[],filter='all',avatarUrl='',shared=false,lecturers=[];
   const card=$('editCard');
+  const recommendationForm=$('recommendationForm');
   function fill(){
     $('fn').value=profile.full_name||'';$('fp').value=profile.program||'';$('fi').value=profile.institution||'';
     $('fy').value=profile.study_year||'';$('fa').value=profile.about||'';
@@ -50,6 +71,91 @@
     document.querySelectorAll('.js-av').forEach(el=>VY.setAvatar(el,avatarUrl,profile.full_name));
     $('list').innerHTML=achievements.filter(x=>filter==='all'||x.s===filter).map(x=>'<div class="item">'+badge(x)+'<h3>'+esc(x.t)+'</h3><p>'+esc(x.n||'')+'</p><p style="margin-top:6px"><small>'+meta(x)+'</small></p>'+(x.proofUrl?'<p><a target="_blank" rel="noopener" href="'+esc(x.proofUrl)+'">View proof document</a></p>':'')+'</div>').join('')||'<p class="sub">Nothing here yet. <a href="add-achievement.html" style="color:var(--blue)">Add your first achievement</a>.</p>';
   }
+  async function loadRecommendationRequests(){
+    const {data,error}=await VY.getClient().from('recommendation_requests')
+      .select('id,recipient_type,recipient_user_id,recipient_name,purpose,message,deadline,status,response_note,letter_path,created_at')
+      .eq('student_id',profile.id).order('created_at',{ascending:false});
+    if(error)throw error;
+    const requests=await Promise.all(data.map(async request=>{
+      let letter='';
+      if(request.letter_path){
+        try{
+          const url=await VY.getSignedFile('recommendation-letters',request.letter_path);
+          letter='<a target="_blank" rel="noopener" href="'+esc(url)+'">Download completed letter</a>';
+        }catch(error){
+          letter='<span>Completed letter is currently unavailable.</span>';
+          VY.reportError(error);
+        }
+      }
+      const state=request.status==='completed'?'Completed':request.status==='rejected'?'Declined':'Pending';
+      const recipient=request.recipient_name||'Institution';
+      return '<div class="item"><span class="b '+(request.status==='completed'?'ok':request.status==='rejected'?'no':'wait')+'">'+state+'</span>'+
+        '<h3>'+esc(request.purpose)+'</h3><p>'+esc(recipient)+' · Requested '+esc(fmt(request.created_at))+
+        (request.deadline?' · Needed by '+esc(fmt(request.deadline)):'')+'</p>'+
+        (request.message?'<p>'+esc(request.message)+'</p>':'')+
+        (request.response_note?'<p><b>Reviewer note:</b> '+esc(request.response_note)+'</p>':'')+
+        (letter?'<p>'+letter+'</p>':'')+'</div>';
+    }));
+    $('recommendationList').innerHTML=requests.join('')||'<p class="sub">You have not requested a recommendation letter yet.</p>';
+  }
+  async function loadRecommendationLecturers(){
+    const select=$('recommendationLecturer');
+    const {data,error}=await VY.getClient().rpc('get_recommendation_lecturers');
+    if(error){
+      if(error.code!=='PGRST202')throw error;
+      lecturers=[];
+      select.innerHTML='<option value="" selected disabled>Lecturer list unavailable</option>';
+      $('recommendationRecipient').value='institution';
+      $('recommendationRecipient').querySelector('option[value="lecturer"]').disabled=true;
+      $('recommendationLecturerField').hidden=true;
+      $('recommendationHelp').textContent='Lecturer requests are temporarily unavailable because the recommendation database migration is missing or its schema cache is stale. Apply supabase/migrations/20261111000000_recommendation_requests.sql in the Supabase SQL Editor, then reload this page.';
+      $('recommendationHelp').className='notice error';
+      return;
+    }
+    lecturers=data||[];
+    select.innerHTML=lecturers.length
+      ?lecturers.map(lecturer=>'<option value="'+esc(lecturer.user_id)+'">'+esc(lecturer.full_name)+'</option>').join('')
+      :'<option value="" selected disabled>No lecturers are registered at this institution</option>';
+    $('recommendationRecipient').querySelector('option[value="lecturer"]').disabled=!lecturers.length;
+    const unavailable=!profile.institution;
+    $('recommendationSubmit').disabled=unavailable;
+    $('recommendationHelp').textContent=!profile.institution
+      ?'Add your institution to your profile before requesting a letter.'
+      :lecturers.length===0
+        ?'No lecturers have signed up with this institution yet. You can still request from the institution.'
+        :'Choose a lecturer signed up with your institution. Your request will appear in their in-app queue.';
+    $('recommendationHelp').className=unavailable?'notice error':'sub';
+  }
+  $('recommendationRecipient').onchange=function(){
+    $('recommendationLecturerField').hidden=this.value!=='lecturer';
+  };
+  recommendationForm.onsubmit=async event=>{
+    event.preventDefault();
+    const button=$('recommendationSubmit');
+    VY.setBusy(button,true,'Sending…');
+    try{
+      const recipientType=$('recommendationRecipient').value;
+      const recipientId=recipientType==='lecturer'?$('recommendationLecturer').value:null;
+      if(recipientType==='lecturer'&&!recipientId){
+        throw new Error('Choose a lecturer who has signed up with your institution.');
+      }
+      const {error}=await VY.getClient().from('recommendation_requests').insert({
+        student_id:profile.id,
+        institution:profile.institution,
+        recipient_type:recipientType,
+        recipient_user_id:recipientId,
+        purpose:$('recommendationPurpose').value.trim(),
+        message:$('recommendationMessage').value.trim(),
+        deadline:$('recommendationDeadline').value||null
+      });
+      if(error)throw error;
+      recommendationForm.reset();
+      $('recommendationLecturerField').hidden=true;
+      VY.showMessage('Recommendation request sent. It is now available in the reviewer’s in-app queue.','success');
+      try{await loadRecommendationRequests()}catch(error){VY.reportError(error)}
+    }catch(error){VY.reportError(error)}
+    finally{VY.setBusy(button,false)}
+  };
   try{
     const client=VY.getClient();
     if(token){
@@ -66,6 +172,8 @@
     }else{
       const auth=await VY.requireUser(['student']);
       profile=auth.profile;achievements=await VY.getAchievements();
+      await loadRecommendationLecturers();
+      await loadRecommendationRequests();
       const {data:share,error:shareError}=await auth.db.from('profile_share_tokens').select('token').eq('user_id',auth.authUser.id).single();
       if(shareError)throw shareError;
       profile.share_token=share.token;
