@@ -54,8 +54,10 @@ input:focus,select:focus{border-color:var(--blue)}
 .or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
 .msg{display:none;margin-top:14px;padding:10px 12px;border-radius:8px;font-size:.82rem;background:var(--mint);color:var(--green)}
 .msg.err{background:#fdecec;color:#b3261e}
+.auth-action{margin-top:10px}
 .back{display:block;text-align:center;margin-top:18px;font-size:.8rem}
 .signup-only{display:block}.login .signup-only{display:none}.login-only{display:none}.login .login-only{display:block}
+.box.recovery .tabs,.box.recovery #roleField,.box.recovery #emailField,.box.recovery #forgot,.box.recovery .or,.box.recovery #uni{display:none}
 
 @media(max-width:860px){
   .page{grid-template-columns:1fr}
@@ -93,29 +95,31 @@ input:focus,select:focus{border-color:var(--blue)}
       <p class="hint" id="hint">Join as a student, institution, or employer.</p>
 
       <form id="form" novalidate>
-        <div>
+        <div id="roleField">
           <div class="lbl">I am a</div>
           <div class="roles">
             <label><input type="radio" name="role" value="student" checked><span>Student</span></label>
             <label><input type="radio" name="role" value="lecturer"><span>Lecturer / Institution</span></label>
             <label><input type="radio" name="role" value="employer"><span>Employer</span></label>
           </div>
-          </div><div class="signup-only"><div class="field"><label for="name">Full name</label><input type="text" id="name" placeholder="e.g. Tariro Moyo"></div>
+          </div><div class="signup-only"><div class="field"><label for="name">Full name</label><input type="text" id="name" placeholder="e.g. Tariro Moyo" maxlength="100" autocomplete="name"></div>
         </div>
 
-        <div class="field"><label for="email">Email</label><input type="email" id="email" placeholder="you@university.ac.zw" required></div>
+        <div class="field" id="emailField"><label for="email">Email</label><input type="email" id="email" placeholder="you@university.ac.zw" autocomplete="email" required></div>
 
         <div class="signup-only">
-          <div class="field"><label for="inst">Institution or company</label><input type="text" id="inst" list="insts" placeholder="Start typing"><datalist id="insts"><option value="Africa University"><option value="University of Zimbabwe"><option value="NUST"><option value="Midlands State University"></datalist></div>
+          <div class="field"><label for="inst">Institution or company</label><input type="text" id="inst" list="insts" placeholder="Start typing" maxlength="160" autocomplete="organization"><datalist id="insts"><option value="Africa University"><option value="University of Zimbabwe"><option value="NUST"><option value="Midlands State University"></datalist></div>
         </div>
 
-        <div class="field"><label for="pw">Password</label><input type="password" id="pw" placeholder="At least 8 characters" required></div>
+        <div class="field"><label id="passwordLabel" for="pw">Password</label><input type="password" id="pw" placeholder="At least 8 characters" autocomplete="new-password" required></div>
         <a href="#" class="login-only" id="forgot">Forgot your password?</a>
 
         <label class="check signup-only"><input type="checkbox" id="terms"> I agree to the Terms and Privacy Policy.</label>
 
         <button type="submit" class="btn btn-p" id="submit">Create account</button>
-        <div class="msg" id="msg" role="status"></div>
+        <div class="msg" id="msg" role="status" aria-live="polite"></div>
+        <button type="button" class="btn btn-o auth-action" id="resend" hidden>Resend confirmation email</button>
+        <button type="button" class="btn btn-o auth-action" id="continue" hidden>Continue to your account</button>
       </form>
 
       <div class="or">or</div>
@@ -133,10 +137,22 @@ input:focus,select:focus{border-color:var(--blue)}
   const tabUp = document.getElementById('tabUp'), tabIn = document.getElementById('tabIn');
   const title = document.getElementById('title'), hint = document.getElementById('hint');
   const submit = document.getElementById('submit'), msg = document.getElementById('msg');
-  let mode = 'signup', recoveryMode = location.hash.includes('type=recovery');
+  const resendButton = document.getElementById('resend');
+  const continueButton = document.getElementById('continue');
+  const searchParams = new URLSearchParams(location.search);
+  const hashParams = new URLSearchParams(location.hash.slice(1));
+  const authErrorCode = searchParams.get('error_code') || hashParams.get('error_code');
+  const authErrorDescription = searchParams.get('error_description') || hashParams.get('error_description');
+  const authError = searchParams.get('auth_error');
+  const confirmationCallback = searchParams.get('confirmed') === '1' ||
+    hashParams.get('type') === 'signup' || hashParams.get('type') === 'email_change';
+  let mode = 'signup', recoveryMode = searchParams.get('type') === 'recovery' ||
+    hashParams.get('type') === 'recovery';
+  let pendingEmail = '';
 
   function setMode(m){
     mode = m;
+    box.classList.toggle('recovery', recoveryMode);
     box.classList.toggle('login', m === 'login');
     tabUp.classList.toggle('on', m === 'signup');
     tabIn.classList.toggle('on', m === 'login');
@@ -144,40 +160,136 @@ input:focus,select:focus{border-color:var(--blue)}
     hint.textContent = m === 'signup' ? 'Join as a student, institution, or employer.' : 'Log in to manage your verified profile.';
     submit.textContent = m === 'signup' ? 'Create account' : 'Log in';
     msg.style.display = 'none';
+    resendButton.hidden = true;
+    continueButton.hidden = true;
+    document.getElementById('forgot').hidden = recoveryMode;
+  }
+  function activateRecoveryMode(){
+    recoveryMode = true;
+    setMode('login');
+    title.textContent = 'Choose a new password';
+    hint.textContent = 'Enter a new password for your account.';
+    submit.textContent = 'Update password';
+    document.getElementById('pw').setAttribute('autocomplete','new-password');
+    document.getElementById('passwordLabel').textContent = 'New password';
+    show('Enter your new password to finish resetting your account.', false);
   }
   tabUp.onclick = () => setMode('signup');
   tabIn.onclick = () => setMode('login');
   if (location.hash === '#login') setMode('login');
   ['lecturer','employer'].forEach(r => { if (location.hash === '#'+r) document.querySelector('input[value='+r+']').checked = true; });
 
-  function show(text, isError){
+  function show(text, isError, actions){
     msg.textContent = text;
     msg.className = 'msg' + (isError ? ' err' : '');
+    msg.setAttribute('role', isError ? 'alert' : 'status');
     msg.style.display = 'block';
+    resendButton.hidden = !(actions && actions.resend);
+    continueButton.hidden = !(actions && actions.continue);
   }
 
   function authErrorMessage(error){
     const message = error && error.message ? error.message : 'Authentication failed. Please try again.';
-    if (/email.*rate limit|rate limit.*email/i.test(message)) {
+    if (/email.*rate limit|rate limit.*email|over_email_send_rate_limit/i.test(message)) {
       return 'Supabase has temporarily limited email delivery for this project. Wait before requesting another email, or ask the project administrator to configure custom SMTP and set an appropriate email limit in Supabase.';
+    }
+    if (/error sending confirmation email|failed to send.*email/i.test(message)) {
+      return 'Supabase could not send the confirmation email. Check the SMTP host, port, username, password, and verified sender address in Supabase, then inspect Authentication logs for the provider error before retrying.';
+    }
+    if (error && error.status === 429) return 'Too many authentication requests. Wait a few minutes before trying again.';
+    if (/email not confirmed|email.*not.*verified/i.test(message)) {
+      return 'Your email address has not been confirmed yet. Request a new confirmation email below, then follow its link before logging in.';
+    }
+    if (/already registered|already exists/i.test(message)) {
+      return 'An account may already use this email address. Try logging in or resetting its password.';
+    }
+    if (/invalid login credentials/i.test(message)) {
+      return 'Email or password is incorrect. Check your details and try again.';
+    }
+    if (authErrorCode === 'otp_expired' || /expired|invalid.*link|invalid.*token/i.test(message)) {
+      return 'This email link has expired or was already used. Request a new confirmation email and use the latest link.';
     }
     return message;
   }
 
-  if (recoveryMode) {
-    setMode('login');
-    title.textContent = 'Choose a new password';
-    hint.textContent = 'Enter a new password for your account.';
-    submit.textContent = 'Update password';
-  } else {
-    VY.routeForRole().then(function (route) { if (route) location.replace(route); }).catch(VY.reportError);
+  async function initializeAuthPage(){
+    if (recoveryMode && !authErrorCode && !authErrorDescription && !authError) {
+      const {data, error} = await VY.getClient().auth.getSession();
+      if (error) throw error;
+      if (!data.session) {
+        recoveryMode = false;
+        setMode('login');
+        show('This password reset link is invalid or expired. Request a new password reset email and use the latest link.', true);
+        return;
+      }
+      activateRecoveryMode();
+      return;
+    }
+    if (authErrorCode || authErrorDescription || authError) {
+      const failedRecovery = recoveryMode;
+      recoveryMode = false;
+      setMode('login');
+      const message = failedRecovery
+        ? 'This password reset link has expired or could not be verified. Request a new password reset email and use the latest link.'
+        : authError === 'unverified'
+          ? 'Confirm your email address before continuing. Request a new confirmation email below.'
+          : authErrorCode === 'otp_expired'
+            ? 'This email link has expired or was already used. Request a new confirmation email and use the latest link.'
+            : authErrorDescription || 'Email verification could not be completed. Request a new confirmation email or try logging in.';
+      show(message, true, {resend:!failedRecovery && (authError === 'unverified' || authErrorCode === 'otp_expired')});
+      return;
+    }
+    if (confirmationCallback) {
+      setMode('login');
+      const {data:{user},error} = await VY.getClient().auth.getUser();
+      if (error) throw error;
+      if (!user || !user.email_confirmed_at) {
+        show('We could not confirm this email address. The link may have expired or already been used. Request a new confirmation email.', true, {resend:true});
+        return;
+      }
+      pendingEmail = user.email || '';
+      document.getElementById('email').value = pendingEmail;
+      const route = await VY.routeForRole();
+      show('Email verified successfully. You can now log in.', false, {continue:Boolean(route)});
+      continueButton.onclick = function(){ if (route) location.replace(route); };
+      return;
+    }
+    if (searchParams.has('code')) {
+      const {data, error} = await VY.getClient().auth.getSession();
+      if (error) throw error;
+      if (data.session && !confirmationCallback) activateRecoveryMode();
+      else if (!data.session) show('This email link is invalid or expired. Request a new password reset email and use the latest link.', true);
+      return;
+    }
+    const route = await VY.routeForRole();
+    if (route) location.replace(route);
   }
+
+  try {
+    VY.getClient().auth.onAuthStateChange(function(event){
+      if (event === 'PASSWORD_RECOVERY') activateRecoveryMode();
+    });
+  } catch (error) {
+    show(authErrorMessage(error), true);
+  }
+
+  initializeAuthPage().catch(function(error){
+    const message = recoveryMode || searchParams.has('code')
+      ? 'This password reset link is invalid or expired. Request a new password reset email and use the latest link.'
+      : confirmationCallback
+        ? 'Email verification could not be completed. The link may be expired, or the verification service may be unavailable. Try again later or request a new email.'
+        : authErrorMessage(error);
+    show(message, true, {resend:confirmationCallback});
+  });
+
   document.getElementById('form').addEventListener('submit', async function(e){
     e.preventDefault();
-    const email = document.getElementById('email').value.trim();
+    const emailInput = document.getElementById('email');
+    const email = emailInput.value.trim();
     const pw = document.getElementById('pw').value;
-    if (!email.includes('@')) return show('Enter a valid email address.', true);
-    if (pw.length < 8) return show('Password must be at least 8 characters.', true);
+    if (!recoveryMode && (!email || !emailInput.validity.valid)) return show('Enter a valid email address.', true);
+    if (!pw) return show('Enter your password.', true);
+    if ((mode === 'signup' || recoveryMode) && pw.length < 8) return show('Password must be at least 8 characters.', true);
     const button = document.getElementById('submit');
     VY.setBusy(button, true, 'Please wait…');
     try {
@@ -186,31 +298,38 @@ input:focus,select:focus{border-color:var(--blue)}
         const {error} = await client.auth.updateUser({password:pw});
         if (error) throw error;
         recoveryMode = false;
-        show('Your password has been updated. You can now log in.', false);
         setMode('login');
+        document.getElementById('pw').value = '';
+        document.getElementById('passwordLabel').textContent = 'Password';
+        show('Your password has been updated. You can now log in.', false);
         return;
       }
-    if (mode === 'signup') {
-      if (!document.getElementById('name').value.trim()) return show('Enter your full name.', true);
-      if (!document.getElementById('terms').checked) return show('Please accept the Terms to continue.', true);
-    }
       if (mode === 'signup') {
+        const fullName = document.getElementById('name').value.trim();
+        const institution = document.getElementById('inst').value.trim();
+        if (!fullName) return show('Enter your full name.', true);
+        if (!institution) return show('Enter your institution or company.', true);
+        if (!document.getElementById('terms').checked) return show('Please accept the Terms to continue.', true);
         const role = document.querySelector('input[name=role]:checked').value;
-        const {data, error} = await client.auth.signUp({
+        const emailRedirectTo = new URL('login.html?confirmed=1#login',location.href).href;
+        const {data,error} = await client.auth.signUp({
           email:email,
           password:pw,
           options:{
-            emailRedirectTo:new URL('login.html#login',location.href).href,
-            data:{
-              role:role,
-              full_name:document.getElementById('name').value.trim(),
-              institution:document.getElementById('inst').value.trim()
-            }
+            emailRedirectTo:emailRedirectTo,
+            data:{role:role,full_name:fullName,institution:institution}
           }
         });
         if (error) throw error;
+        pendingEmail = email;
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          setMode('login');
+          show('An account may already exist for this address. Try logging in, or resend its confirmation email if it is still unverified.', false, {resend:true});
+          return;
+        }
         if (!data.session) {
-          show('Account created. Check your email to confirm your address, then log in.', false);
+          setMode('login');
+          show('Supabase accepted the registration and confirmation email request. Check your inbox and spam folder, then follow the link. If it does not arrive, use the resend button.', false, {resend:true});
           return;
         }
       } else {
@@ -218,22 +337,45 @@ input:focus,select:focus{border-color:var(--blue)}
         if (error) throw error;
       }
       const route = await VY.routeForRole();
-      if (!route) throw new Error('Authentication succeeded, but no session was created. Check your email confirmation settings.');
+      if (!route) throw new Error('Authentication succeeded, but no account session was found. Check your email confirmation settings and try again.');
       location.replace(route);
     } catch (error) {
-      show(authErrorMessage(error), true);
+      show(authErrorMessage(error), true, {
+        resend:mode === 'signup' || /email.*not.*confirmed|email not confirmed/i.test(error && error.message || '')
+      });
     } finally {
       VY.setBusy(button, false);
+    }
+  });
+
+  resendButton.addEventListener('click', async function(){
+    const emailInput = document.getElementById('email');
+    const email = (pendingEmail || emailInput.value).trim();
+    if (!email || !emailInput.validity.valid) return show('Enter the email address you used to register.', true);
+    VY.setBusy(resendButton, true, 'Sending…');
+    try {
+      const {error} = await VY.getClient().auth.resend({
+        type:'signup',
+        email:email,
+        options:{emailRedirectTo:new URL('login.html?confirmed=1#login',location.href).href}
+      });
+      if (error) throw error;
+      pendingEmail = email;
+      show('If an unconfirmed account exists for this address, Supabase accepted a new confirmation email request. Check your inbox and spam folder.', false, {resend:true});
+    } catch (error) {
+      show(authErrorMessage(error), true, {resend:true});
+    } finally {
+      VY.setBusy(resendButton, false);
     }
   });
 
   document.getElementById('forgot').onclick = async function(e) {
     e.preventDefault();
     const email = document.getElementById('email').value.trim();
-    if (!email.includes('@')) return show('Enter your email address first.', true);
+    if (!email || !document.getElementById('email').validity.valid) return show('Enter your email address first.', true);
     try {
       const {error} = await VY.getClient().auth.resetPasswordForEmail(email, {
-        redirectTo:new URL('login.html', location.href).href
+        redirectTo:new URL('login.html?type=recovery', location.href).href
       });
       if (error) throw error;
       show('Password reset instructions have been sent to your email.', false);
@@ -241,14 +383,14 @@ input:focus,select:focus{border-color:var(--blue)}
   };
   document.getElementById('uni').onclick = async function() {
     const email = document.getElementById('email').value.trim();
-    if (!email.includes('@')) return show('Enter your university email address first.', true);
+    if (!email || !document.getElementById('email').validity.valid) return show('Enter your university email address first.', true);
     try {
       const {error} = await VY.getClient().auth.signInWithOtp({
         email:email,
-        options:{emailRedirectTo:new URL('login.html#login',location.href).href}
+        options:{emailRedirectTo:new URL('login.html?confirmed=1#login',location.href).href}
       });
       if (error) throw error;
-      show('A sign-in link has been sent to your email.', false);
+      show('Supabase accepted the sign-in email request. Check your inbox and spam folder.', false);
     } catch (error) { show(authErrorMessage(error), true); }
   };
 </script>

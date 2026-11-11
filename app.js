@@ -111,7 +111,15 @@
     node.hidden = false;
   }
 
+  class RedirectError extends Error {
+    constructor() {
+      super('Redirecting to the correct page.');
+      this.name = 'RedirectError';
+    }
+  }
+
   function reportError(error) {
+    if (error instanceof RedirectError) return;
     console.error(error);
     showMessage(error && error.message ? error.message : 'Something went wrong. Please try again.', 'error');
   }
@@ -135,20 +143,31 @@
     const session = result.data.session;
     if (!session) {
       location.replace('login.html#login');
-      throw new Error('Please log in to continue.');
+      throw new RedirectError();
     }
-    currentAuthUser = session.user;
-    const profileResult = await db.from('profiles').select('*').eq('id', session.user.id).single();
+    const userResult = await db.auth.getUser();
+    if (userResult.error) throw userResult.error;
+    const authUser = userResult.data.user;
+    if (!authUser) {
+      location.replace('login.html#login');
+      throw new RedirectError();
+    }
+    if (authUser.email && !authUser.email_confirmed_at) {
+      location.replace('login.html?auth_error=unverified#login');
+      throw new RedirectError();
+    }
+    currentAuthUser = authUser;
+    const profileResult = await db.from('profiles').select('*').eq('id', authUser.id).single();
     if (profileResult.error) throw profileResult.error;
     currentProfile = profileResult.data;
     if (roles && roles.indexOf(currentProfile.role) === -1) {
       location.replace(currentProfile.role === 'lecturer' ? 'institution.html' :
         currentProfile.role === 'employer' ? 'employer.html' : 'dashboard.html');
-      throw new Error('This page is not available for your account.');
+      throw new RedirectError();
     }
     if (currentProfile.role === 'lecturer') {
       const verifierResult = await db.from('institution_verifiers')
-        .select('institution, active').eq('user_id', session.user.id).eq('active', true).maybeSingle();
+        .select('institution, active').eq('user_id', authUser.id).eq('active', true).maybeSingle();
       if (verifierResult.error) throw verifierResult.error;
       if (location.pathname.toLowerCase().endsWith('institution.html') && !verifierResult.data) {
         throw new Error('Institution review access has not been granted to this account. Ask a project administrator to add you as an institution verifier.');
@@ -156,27 +175,30 @@
       currentProfile.verifier = verifierResult.data;
     }
     shell(location.pathname.split(/[\\/]/).pop(), currentProfile);
-    return {db: db, authUser: session.user, profile: currentProfile};
+    return {db: db, authUser: authUser, profile: currentProfile};
   }
 
   function shell(page, profile) {
     const side = document.getElementById('side');
-    if (!side || !profile) return;
-    const student = profile.role === 'student';
-    const institution = profile.role === 'lecturer';
-    const links = student
-      ? [['dashboard.html','Dashboard'],['achievements.html','Achievements'],['add-achievement.html','Add achievement'],['requests.html','Requests'],['profile.html','My profile'],['settings.html','Settings']]
-      : institution
-        ? [['institution.html','Verification requests']]
-        : [['employer.html','Find candidates'],['employer-settings.html','Settings']];
-    const activePage = (page || '').split('#')[0];
-    side.innerHTML = '<a class="brand" href="index.html">' + ico('shield') + 'VerifiedYou</a>' +
-      '<nav aria-label="Main">' + links.map(function (link) {
-        return '<a href="' + link[0] + '" class="' + (activePage === link[0] ? 'on' : '') + '">' + esc(link[1]) + '</a>';
-      }).join('') + '</nav><div class="who"><strong>' + esc(profile.full_name || profile.institution || 'Account') +
-      '</strong>' + esc(profile.institution || profile.email || '') +
-      '<button type="button" id="logout">Log out</button></div>';
-    document.getElementById('logout').addEventListener('click', async function () {
+    if (side && profile) {
+      const student = profile.role === 'student';
+      const institution = profile.role === 'lecturer';
+      const links = student
+        ? [['dashboard.html','Dashboard'],['achievements.html','Achievements'],['add-achievement.html','Add achievement'],['requests.html','Requests'],['profile.html','My profile'],['settings.html','Settings']]
+        : institution
+          ? [['institution.html','Verification requests']]
+          : [['employer.html','Find candidates'],['employer-settings.html','Settings']];
+      const activePage = (page || '').split('#')[0];
+      side.innerHTML = '<a class="brand" href="index.html">' + ico('shield') + 'VerifiedYou</a>' +
+        '<nav aria-label="Main">' + links.map(function (link) {
+          return '<a href="' + link[0] + '" class="' + (activePage === link[0] ? 'on' : '') + '">' + esc(link[1]) + '</a>';
+        }).join('') + '</nav><div class="who"><strong>' + esc(profile.full_name || profile.institution || 'Account') +
+        '</strong>' + esc(profile.institution || profile.email || '') +
+        '<button type="button" id="logout">Log out</button></div>';
+    }
+    const logout = document.getElementById('logout');
+    if (!logout) return;
+    logout.addEventListener('click', async function () {
       try {
         const {error} = await getClient().auth.signOut();
         if (error) throw error;
@@ -369,7 +391,10 @@
     const {data: sessionData, error} = await db.auth.getSession();
     if (error) throw error;
     if (!sessionData.session) return null;
-    currentAuthUser = sessionData.session.user;
+    const {data:userData,error:userError} = await db.auth.getUser();
+    if (userError) throw userError;
+    if (!userData.user || (userData.user.email && !userData.user.email_confirmed_at)) return null;
+    currentAuthUser = userData.user;
     const {data, error: profileError} = await db.from('profiles').select('role').eq('id', currentAuthUser.id).single();
     if (profileError) throw profileError;
     return data.role === 'lecturer' ? 'institution.html' : data.role === 'employer' ? 'employer.html' : 'dashboard.html';
