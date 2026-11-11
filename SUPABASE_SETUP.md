@@ -65,7 +65,7 @@ Students can select lecturers whose signed-up lecturer profiles have the same in
 npx supabase functions deploy notify-recommendation-request
 ```
 
-In the Supabase Dashboard, set the Edge Function secrets `RESEND_API_KEY` and `RESEND_FROM_EMAIL` to a Resend API key and a verified sender address. `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are server-side secrets; never add them to `supabase-config.js` or other browser files. If the email sender is unavailable, the request remains saved and visible in-app, and the student sees that the email notification failed.
+Email notifications are optional. Recommendation requests appear in the reviewer's in-app queue without any email-provider setup. To enable email later, deploy the Edge Function and set the Edge Function secrets `RESEND_API_KEY` and `RESEND_FROM_EMAIL` to a Resend API key and a verified sender address. `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are server-side secrets; never add them to `supabase-config.js` or other browser files.
 - A share URL uses a random token kept in a private owner-only table and exposes a limited profile plus verified achievements marked public or link-only. Rotate/revoke a share token only through a trusted administrative process in this initial version.
 
 The Supabase Auth and PostgREST endpoints have been verified against the configured project. End-to-end registration, authenticated persistence, file uploads, and cross-account RLS behavior still require testing with real user accounts.

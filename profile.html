@@ -123,7 +123,7 @@
       ?'Add your institution to your profile before requesting a letter.'
       :lecturers.length===0
         ?'No lecturers have signed up with this institution yet. You can still request from the institution.'
-        :'Choose a lecturer signed up with your institution. They will receive an in-app request and an email notification.';
+        :'Choose a lecturer signed up with your institution. Your request will appear in their in-app queue.';
     $('recommendationHelp').className=unavailable?'notice error':'sub';
   }
   $('recommendationRecipient').onchange=function(){
@@ -139,7 +139,7 @@
       if(recipientType==='lecturer'&&!recipientId){
         throw new Error('Choose a lecturer who has signed up with your institution.');
       }
-      const {data:request,error}=await VY.getClient().from('recommendation_requests').insert({
+      const {error}=await VY.getClient().from('recommendation_requests').insert({
         student_id:profile.id,
         institution:profile.institution,
         recipient_type:recipientType,
@@ -147,23 +147,11 @@
         purpose:$('recommendationPurpose').value.trim(),
         message:$('recommendationMessage').value.trim(),
         deadline:$('recommendationDeadline').value||null
-      }).select('id').single();
+      });
       if(error)throw error;
       recommendationForm.reset();
       $('recommendationLecturerField').hidden=true;
-      let emailWarning='';
-      try{
-        const {error:notificationError}=await VY.getClient().functions.invoke('notify-recommendation-request',{
-          body:{requestId:request.id}
-        });
-        if(notificationError)throw notificationError;
-      }catch(error){
-        console.error('Recommendation request was saved, but its email notification failed.',error);
-        emailWarning=' The request is available in the lecturer’s in-app queue, but the email notification could not be sent.';
-      }
-      VY.showMessage(emailWarning
-        ?'Recommendation request sent.'+emailWarning
-        :'Recommendation request sent. The lecturer was notified by email.',emailWarning?'error':'success');
+      VY.showMessage('Recommendation request sent. It is now available in the reviewer’s in-app queue.','success');
       try{await loadRecommendationRequests()}catch(error){VY.reportError(error)}
     }catch(error){VY.reportError(error)}
     finally{VY.setBusy(button,false)}
